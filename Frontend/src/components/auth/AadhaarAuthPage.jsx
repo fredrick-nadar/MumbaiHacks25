@@ -231,7 +231,7 @@ const AadhaarAuthPage = ({ theme }) => {
         {/* Footer */}
         <footer className="mt-8 text-center">
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            Powered by Aadhaar e-KYC • Secure • Compliant • Indian Government  Approved
+            Powered by Aadhaar e-KYC • Secure • Compliant • Indian Government Approved
           </p>
         </footer>
       </div>
