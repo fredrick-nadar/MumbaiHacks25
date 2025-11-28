@@ -179,43 +179,7 @@ const AadhaarAuthPage = ({ theme }) => {
           </div>
         )}
 
-        {/* Quick Navigation for Login/Reset */}
-        {(currentStep === "login" || currentStep === "reset") && (
-          <div className="mb-8 flex justify-center">
-            <div className="flex items-center gap-2 rounded-full border border-white/20 bg-white/80 px-4 py-2 text-sm backdrop-blur dark:border-slate-700/60 dark:bg-slate-900/70">
-              <Button
-                variant={currentStep === "login" ? "default" : "ghost"}
-                size="sm"
-                onClick={() => {
-                  setCurrentStep("login")
-                  setSearchParams({ mode: "login" })
-                }}
-                className="rounded-full px-4 text-xs text-white"
-                style={currentStep === "login" ? gradientButtonStyle : undefined}
-              >
-                Login
-              </Button>
-              <Button
-                variant={currentStep === "reset" ? "default" : "ghost"}
-                size="sm"
-                onClick={handleForgotPassword}
-                className="rounded-full px-4 text-xs text-white"
-                style={currentStep === "reset" ? gradientButtonStyle : undefined}
-              >
-                Reset Password
-              </Button>
-              <div className="h-4 w-px bg-slate-300 dark:bg-slate-600" />
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleBackToVerification}
-                className="rounded-full px-4 text-xs"
-              >
-                New Registration
-              </Button>
-            </div>
-          </div>
-        )}
+
 
         {/* Main Content */}
         <div className="flex flex-1 items-center justify-center">
@@ -258,23 +222,7 @@ const AadhaarAuthPage = ({ theme }) => {
                 variants={pageVariants}
                 transition={pageTransition}
               >
-                <AadhaarLogin onLoginSuccess={handleLoginSuccess} onForgotPassword={handleForgotPassword} />
-              </Motion.div>
-            )}
-
-            {currentStep === "reset" && (
-              <Motion.div
-                key="reset"
-                initial="initial"
-                animate="in"
-                exit="out"
-                variants={pageVariants}
-                transition={pageTransition}
-              >
-                <PasswordReset
-                  onResetComplete={handleResetComplete}
-                  onBackToLogin={handleBackToLogin}
-                />
+                <AadhaarLogin onLoginSuccess={handleLoginSuccess} />
               </Motion.div>
             )}
           </AnimatePresence>
@@ -283,7 +231,7 @@ const AadhaarAuthPage = ({ theme }) => {
         {/* Footer */}
         <footer className="mt-8 text-center">
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            Powered by Aadhaar e-KYC • Secure • Compliant • Indian Government Approved
+            Powered by Aadhaar e-KYC • Secure • Compliant • Indian Government  Approved
           </p>
         </footer>
       </div>

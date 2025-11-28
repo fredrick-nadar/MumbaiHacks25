@@ -11,6 +11,343 @@ const { validateRequest } = require('../middleware/auth');
 const User = require('../models/User');
 const KycSession = require('../models/KycSession');
 const moment = require('moment');
+const puppeteer = require('puppeteer');
+
+/**
+ * Open DigiLocker QR Scanner with Puppeteer
+ * POST /kyc/aadhaar/digilocker-scan
+ * Opens DigiLocker, extracts data, and auto-fills registration form
+ */
+router.post('/digilocker-scan', kycLimiter, async (req, res) => {
+  let browser;
+  
+  try {
+    console.log('🚀 Starting DigiLocker Puppeteer scanner...');
+    
+    // Launch browser with popup size
+    browser = await puppeteer.launch({
+      headless: false,
+      args: [
+        '--no-sandbox', 
+        '--disable-setuid-sandbox',
+        '--window-size=450,700',
+        '--window-position=750,100',
+        '--disable-features=Translate',
+        '--disable-extensions',
+        '--disable-default-apps',
+        '--no-first-run'
+      ],
+      defaultViewport: {
+        width: 450,
+        height: 700
+      }
+    });
+
+    const page = await browser.newPage();
+    
+    // Close extra pages if any
+    const pages = await browser.pages();
+    if (pages.length > 1) {
+      for (let i = 0; i < pages.length; i++) {
+        if (pages[i] !== page) {
+          await pages[i].close();
+        }
+      }
+    }
+    
+    // Go to DigiLocker verification page
+    await page.goto('https://verify.digilocker.gov.in/', {
+      timeout: 30000,
+      waitUntil: 'domcontentloaded'
+    });
+
+    console.log('⏳ Waiting for QR scan (user needs to scan Aadhaar QR)...');
+
+    // Wait for view page or Aadhaar data to appear
+    await page.waitForFunction(() => {
+      try {
+        const body = document && document.body && document.body.innerText;
+        const pathOk = location && location.pathname && location.pathname.includes('/view');
+        const textOk = body && (
+          body.includes('Aadhaar Number') || 
+          body.includes('Unique Identification Authority of India') || 
+          body.includes('Name') ||
+          body.includes('Date of Birth') ||
+          body.includes('Gender') ||
+          body.includes('Address')
+        );
+        return pathOk || textOk;
+      } catch (e) {
+        return false;
+      }
+    }, { timeout: 120000 });
+
+    console.log('✅ QR scanned successfully, extracting data...');
+    
+    // Wait a bit more for the page to fully render (using setTimeout instead of deprecated waitForTimeout)
+    await new Promise(resolve => setTimeout(resolve, 2000));
+
+    // Take a screenshot for debugging
+    await page.screenshot({ path: 'digilocker-scan.png' });
+    console.log('📸 Screenshot saved as digilocker-scan.png');
+
+    // Extract Aadhaar data from DigiLocker page
+    const aadhaarData = await page.evaluate(() => {
+      const pageText = (document.body && document.body.innerText) || '';
+      const pageHTML = (document.body && document.body.innerHTML) || '';
+
+      const extractValue = (fieldName) => {
+        // Try multiple patterns
+        const patterns = [
+          new RegExp(fieldName + '\\s*:\\s*([^\\n]+)', 'i'),
+          new RegExp(fieldName + '\\s*-\\s*([^\\n]+)', 'i'),
+          new RegExp(fieldName + '\\s+([^\\n]+)', 'i')
+        ];
+        
+        for (const regex of patterns) {
+          const match = pageText.match(regex);
+          if (match && match[1] && match[1].trim()) {
+            return match[1].trim();
+          }
+        }
+        
+        // Try DOM extraction
+        const selectors = [
+          `[class*="${fieldName.toLowerCase()}"]`,
+          `[id*="${fieldName.toLowerCase()}"]`,
+          `td:contains("${fieldName}")`,
+          `.field-label:contains("${fieldName}") + .field-value`
+        ];
+        
+        for (const selector of selectors) {
+          try {
+            const element = document.querySelector(selector);
+            if (element && element.textContent) {
+              const text = element.textContent.trim();
+              // Remove field name from text if present
+              return text.replace(new RegExp(fieldName + '\\s*:?\\s*', 'i'), '').trim();
+            }
+          } catch (e) {
+            // Selector not valid, continue
+          }
+        }
+        
+        return '';
+      };
+
+      const normalizeGender = (gender) => {
+        const g = (gender || '').toLowerCase();
+        if (g.includes('male') && !g.includes('female')) return 'M';
+        if (g.includes('female')) return 'F';
+        if (g.includes('other') || g.includes('transgender')) return 'O';
+        return 'M';
+      };
+
+      // Extract with multiple fallback patterns
+      let name = extractValue('Name') || extractValue('Resident Name') || extractValue('Full Name') || '';
+      let dob = extractValue('Date of Birth') || extractValue('DOB') || extractValue('Birth Date') || '';
+      let gender = normalizeGender(extractValue('Gender') || extractValue('Sex') || '');
+      let address = extractValue('Address') || extractValue('Complete Address') || '';
+      let aadhaarNumber = extractValue('Aadhaar Number') || extractValue('Aadhaar No') || extractValue('UID') || extractValue('Aadhaar') || '';
+
+      // Try table-based extraction (common in DigiLocker)
+      if (!name || !dob) {
+        const rows = document.querySelectorAll('tr, .row, .field-row');
+        rows.forEach(row => {
+          const text = row.textContent || '';
+          if (text.match(/name/i) && !name) {
+            const match = text.match(/name\s*:?\s*(.+?)(?:\n|$)/i);
+            if (match) name = match[1].trim();
+          }
+          if (text.match(/date.*birth|dob/i) && !dob) {
+            const match = text.match(/(?:date.*birth|dob)\s*:?\s*(.+?)(?:\n|$)/i);
+            if (match) dob = match[1].trim();
+          }
+          if (text.match(/gender|sex/i) && !gender) {
+            const match = text.match(/(?:gender|sex)\s*:?\s*(.+?)(?:\n|$)/i);
+            if (match) gender = normalizeGender(match[1].trim());
+          }
+          if (text.match(/aadhaar.*number|uid/i) && !aadhaarNumber) {
+            const match = text.match(/(?:aadhaar.*number|uid)\s*:?\s*(.+?)(?:\n|$)/i);
+            if (match) aadhaarNumber = match[1].trim();
+          }
+          if (text.match(/address/i) && !address) {
+            const match = text.match(/address\s*:?\s*(.+?)(?:\n|$)/i);
+            if (match) address = match[1].trim();
+          }
+        });
+      }
+
+      const pincodeMatch = address.match(/(\d{6})\s*$/);
+      const pincode = pincodeMatch ? pincodeMatch[1] : '';
+
+      return {
+        name,
+        dob,
+        gender,
+        address,
+        pincode,
+        aadhaarNumber: aadhaarNumber.replace(/\s/g, ''),
+        referenceId: aadhaarNumber.replace(/\s/g, '') || 'DIGI' + Date.now().toString().slice(-8),
+        rawText: pageText.substring(0, 1000), // Include longer snippet for debugging
+        fullText: pageText // Include full text for complete debugging
+      };
+    });
+
+    // Save full page text to file for debugging
+    const fs = require('fs');
+    const path = require('path');
+    const debugFilePath = path.join(__dirname, '../../digilocker-page-text.txt');
+    fs.writeFileSync(debugFilePath, aadhaarData.fullText || 'No text captured', 'utf8');
+    console.log('📝 Full page text saved to:', debugFilePath);
+
+    console.log('\n========================================');
+    console.log('📄 EXTRACTED AADHAAR DATA:');
+    console.log('========================================');
+    console.log('Name:', aadhaarData.name || '(empty)');
+    console.log('DOB:', aadhaarData.dob || '(empty)');
+    console.log('Gender:', aadhaarData.gender || '(empty)');
+    console.log('Address:', aadhaarData.address || '(empty)');
+    console.log('Pincode:', aadhaarData.pincode || '(empty)');
+    console.log('Aadhaar Number:', aadhaarData.aadhaarNumber || '(empty)');
+    console.log('Reference ID:', aadhaarData.referenceId || '(empty)');
+    console.log('========================================');
+    console.log('Raw Text Preview:');
+    console.log(aadhaarData.rawText || '(not captured)');
+    console.log('========================================\n');
+
+    // Validate extracted data
+    if (!aadhaarData.name || !aadhaarData.dob) {
+      console.log('❌ Validation failed: Missing required fields (name or dob)');
+      await browser.close();
+      return res.status(400).json({
+        status: 'error',
+        message: 'Could not extract required information from DigiLocker. Please try again.',
+        debug: {
+          extractedData: aadhaarData,
+          rawTextPreview: aadhaarData.rawText
+        }
+      });
+    }
+
+    // Normalize the data
+    const normalizedData = normalizeAadhaarData(aadhaarData);
+    
+    // Generate session ID
+    const sessionId = generateKycSessionId();
+    
+    // Hash Aadhaar reference
+    const referenceHash = hashReference(aadhaarData.referenceId);
+    
+    // Generate password
+    const passwordResult = {
+      success: true,
+      password: generatePassword(normalizedData.name, normalizedData.dob),
+      hint: `NAME4 (first 4 letters of name) + DDMMYY (date format)`
+    };
+    
+    // Check if user exists
+    const existingUser = await User.findOne({ aadhaarRefHash: referenceHash });
+    const userExists = !!existingUser;
+    const nameLoginKey = userExists ? existingUser.nameLoginKey : normalizedData.name.substring(0, 4).toUpperCase().padEnd(4, 'X');
+    
+    // Parse year of birth from various date formats
+    let yearOfBirth = new Date().getFullYear() - 25; // default
+    if (normalizedData.dob) {
+      // Try DD/MM/YYYY or DD-MM-YYYY format
+      const dobParts = normalizedData.dob.split(/[\/\-]/);
+      if (dobParts.length === 3) {
+        const year = parseInt(dobParts[2]);
+        if (!isNaN(year) && year > 1900 && year < 2100) {
+          yearOfBirth = year;
+        }
+      }
+    }
+
+    // Create KYC session
+    const sessionData = {
+      sessionId,
+      source: 'QR',
+      status: 'PARSED',
+      temp: {
+        name: normalizedData.name,
+        yearOfBirth: yearOfBirth,
+        gender: normalizedData.gender || 'M',
+        addressMasked: normalizedData.address,
+        dob: normalizedData.dob,
+        address: normalizedData.address,
+        nameLoginKey: nameLoginKey,
+        generatedPassword: passwordResult.password,
+        passwordHint: passwordResult.hint
+      },
+      referencePreview: aadhaarData.referenceId ? aadhaarData.referenceId.slice(-4) : 'DIGI',
+      aadhaarRefHash: referenceHash,
+      expiresAt: new Date(Date.now() + 2 * 60 * 60 * 1000),
+      clientIp: req.ip,
+      userAgent: req.get('User-Agent')
+    };
+    
+    const kycSession = new KycSession(sessionData);
+    await kycSession.save();
+    
+    // Log the operation
+    await logAuthEvent(existingUser?._id || null, 'kyc_digilocker_scanned', {
+      sessionId,
+      dataSource: 'digilocker_qr',
+      userExists,
+      success: true
+    }, req);
+
+    console.log('✅ KYC session created successfully');
+    
+    // Close browser now that we have the data
+    await browser.close();
+    
+    console.log('✅ Data extracted and session created!');
+    console.log('🔑 Login credentials:');
+    console.log('   Name:', nameLoginKey);
+    console.log('   Password:', passwordResult.password);
+    
+    // Return data to frontend for auto-fill
+    res.json({
+      status: 'success',
+      message: 'DigiLocker scan completed successfully',
+      data: {
+        sessionId,
+        userExists,
+        extractedInfo: {
+          name: normalizedData.name,
+          dob: normalizedData.dob,
+          gender: normalizedData.gender,
+          address: normalizedData.address,
+          pincode: aadhaarData.pincode || '',
+          aadhaarNumber: aadhaarData.aadhaarNumber || '',
+          nameLoginKey,
+          passwordHint: passwordResult.hint
+        }
+      }
+    });
+    
+  } catch (error) {
+    console.error('❌ DigiLocker scan error:', error);
+    
+    if (browser) {
+      await browser.close();
+    }
+    
+    // Log the failed operation
+    await logAuthEvent(null, 'kyc_digilocker_scan_failed', {
+      error: error.message,
+      success: false
+    }, req);
+
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to scan DigiLocker QR code',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
 
 /**
  * Parse Aadhaar QR Code

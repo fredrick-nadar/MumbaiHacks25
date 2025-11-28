@@ -265,6 +265,7 @@ router.post('/ingest/csv', upload.single('csvFile'), async (req, res) => {
     for (const record of records) {
       const dateValue = record.Date || record.date || record['Transaction Date'] || record['Txn Date'] || record['Value Date'];
       const descriptionValue = record.Description || record.description || record.Narration || record.narration || record.Particulars || record['Transaction Details'];
+      const transactionTypeValue = record.transaction_type || record['Transaction Type'] || record.Type || record.type || null;
       const debitValue = record['Debit Amount'] || record.Debit || record.debit || record['Withdrawal Amt'] || record['Withdrawal'];
       const creditValue = record['Credit Amount'] || record.Credit || record.credit || record['Deposit Amt'] || record['Deposit'];
       const genericAmount = record.Amount || record.amount || record['Transaction Amount'] || record['Txn Amount'];
@@ -303,13 +304,24 @@ router.post('/ingest/csv', upload.single('csvFile'), async (req, res) => {
       }
 
       const { category, type } = categorizeTransaction(descriptionValue, signedAmount);
+      
+      // Determine transaction type from CSV column if available, otherwise use amount sign
+      let transactionType = signedAmount >= 0 ? 'credit' : 'debit';
+      if (transactionTypeValue) {
+        const typeStr = String(transactionTypeValue).toLowerCase().trim();
+        if (typeStr === 'credit' || typeStr === 'cr') {
+          transactionType = 'credit';
+        } else if (typeStr === 'debit' || typeStr === 'dr' || typeStr === 'debit') {
+          transactionType = 'debit';
+        }
+      }
 
       transactions.push({
         userId: req.user._id,
         date: parsedDate,
         description: descriptionValue.trim(),
         amount: Math.abs(signedAmount),
-        type: signedAmount >= 0 ? 'credit' : 'debit',
+        type: transactionType,
         category,
         balance: parseNumber(balanceValue) || null,
         rawDescription: descriptionValue,
@@ -327,7 +339,8 @@ router.post('/ingest/csv', upload.single('csvFile'), async (req, res) => {
     try {
       const preparsed = transactions.map((tx) => ({
         description: tx.description,
-        amount: tx.type === 'credit' ? tx.amount : -tx.amount,
+        amount: tx.amount,
+        transaction_type: tx.type === 'credit' ? 'Credit' : 'Debit',
         date: tx.date.toISOString().split('T')[0],
       }));
 
@@ -342,7 +355,11 @@ router.post('/ingest/csv', upload.single('csvFile'), async (req, res) => {
           if (typeof aiTx.amount === 'number' && !Number.isNaN(aiTx.amount)) {
             const absoluteAmount = Math.abs(aiTx.amount);
             updated.amount = absoluteAmount;
-            updated.type = aiTx.amount >= 0 ? 'credit' : 'debit';
+          }
+          
+          // Respect the type field from Gemini if provided
+          if (aiTx.type && (aiTx.type === 'credit' || aiTx.type === 'debit')) {
+            updated.type = aiTx.type;
           }
 
           if (aiTx.date) {

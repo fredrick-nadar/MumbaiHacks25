@@ -21,6 +21,7 @@ import { Input } from "./components/ui/input"
 import { Label } from "./components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./components/ui/tabs"
 import AadhaarAuthPage from "./components/auth/AadhaarAuthPage"
+import DigiLockerAuthPage from "./pages/public/DigiLockerAuthPage"
 import LogoBadge from "./components/logo"
 import NotificationCard from "./components/ui/notification-card"
 
@@ -516,7 +517,7 @@ const LandingPage = ({ theme }) => {
                       <Link to="/aadhaar-auth?mode=login&next=%2Fdashboard">Log In</Link>
                     </Button>
                     <Button size="lg" className="text-white shadow-[0_16px_40px_-24px_rgba(14,165,233,0.6)]" style={gradientButtonStyle} asChild>
-                      <Link to="/aadhaar-auth?mode=signup">Create Workspace</Link>
+                      <Link to="/digilocker-auth">Create Workspace</Link>
                     </Button>
                   </>
                 )}
@@ -870,11 +871,17 @@ const AuthPage = ({ theme }) => {
                     >
                       <div className="space-y-3 text-center">
                         <p className="text-sm text-slate-600 dark:text-slate-300">
-                          Register with your Aadhaar QR code or XML file
+                          Register with DigiLocker QR scanner or upload Aadhaar
                         </p>
                         <Button size="lg" className="w-full justify-center text-white" style={gradientButtonStyle} asChild>
-                          <Link to="/aadhaar-auth?mode=register">
-                            Get Started with Aadhaar
+                          <Link to="/digilocker-auth">
+                            Scan with DigiLocker
+                            <ArrowRight className="ml-2 h-4 w-4" />
+                          </Link>
+                        </Button>
+                        <Button size="lg" variant="outline" className="w-full justify-center" style={{ borderColor: brandAccent, color: brandAccent }} asChild>
+                          <Link to="/digilocker-auth">
+                            Or Upload Manually
                             <ArrowRight className="ml-2 h-4 w-4" />
                           </Link>
                         </Button>
@@ -885,9 +892,10 @@ const AuthPage = ({ theme }) => {
                         <div className="h-px flex-1 bg-slate-200 dark:bg-slate-700" />
                       </div>
                       <div className="space-y-2 text-center text-xs text-slate-500 dark:text-slate-400">
-                        <p>📱 Scan Aadhaar QR or upload XML file</p>
+                        <p>🚀 DigiLocker scanner opens automatically</p>
+                        <p>📱 Scan your Aadhaar QR code</p>
+                        <p>✨ Form auto-fills with your data</p>
                         <p>🔐 Automatic secure password generation</p>
-                        <p>⚡ Instant account creation and KYC completion</p>
                       </div>
                       <p className="text-xs text-slate-500 dark:text-slate-400 text-center">
                         By continuing you agree to the TaxWise Terms of Service and Data Protection Policy.
@@ -975,6 +983,7 @@ const App = () => {
           <Route path="/tax-calculator" element={<TaxCalculatorPage theme={theme} />} />
           <Route path="/auth" element={requireGuest(<AuthPage theme={theme} />)} />
           <Route path="/aadhaar-auth" element={requireGuest(<AadhaarAuthPage theme={theme} />)} />
+          <Route path="/digilocker-auth" element={requireGuest(<DigiLockerAuthPage theme={theme} />)} />
           <Route
             path="/dashboard/*"
             element={requireAuth(<DashboardLayout theme={theme} />)}

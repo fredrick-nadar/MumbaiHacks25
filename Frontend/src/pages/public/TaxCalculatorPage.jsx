@@ -456,7 +456,7 @@ const TaxCalculator = ({ taxInputs, handleTaxChange, oldRegime, newRegime, taxDe
               style={{ color: brandAccent }}
               asChild
             >
-              <Link to="/aadhaar-auth?mode=signup">Open free workspace</Link>
+              <Link to="/digilocker-auth">Open free workspace</Link>
             </Button>
           </div>
         </CardContent>
@@ -594,7 +594,7 @@ const CibilSimulator = ({ creditInputs, handleCreditChange, creditScore, brandAc
             <p className="text-xs">Unlock AI-led reconciliations, client workflows, and bureau-ready insights.</p>
           </div>
           <Button size="sm" variant="outline" style={{ borderColor: brandAccent, color: brandAccent }} asChild>
-            <Link to="/aadhaar-auth?mode=signup">Book a walkthrough</Link>
+            <Link to="/digilocker-auth">Book a walkthrough</Link>
           </Button>
         </div>
       </Card>

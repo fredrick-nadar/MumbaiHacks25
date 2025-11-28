@@ -1,4 +1,4 @@
-import React, { useState } from "react"
+import React, { useState, useEffect } from "react"
 import { CheckCircle2, AlertCircle, User, Calendar, MapPin, Key, Copy, Loader2 } from "lucide-react"
 import { Button } from "../ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card"
@@ -10,8 +10,46 @@ const AadhaarReview = ({ verificationData, onComplete }) => {
   const [isCompleting, setIsCompleting] = useState(false)
   const [error, setError] = useState(null)
   const [copySuccess, setCopySuccess] = useState(false)
+  const [data, setData] = useState(verificationData)
 
-  const { sessionId, userExists, extractedInfo } = verificationData
+  // Update data when verificationData prop changes
+  useEffect(() => {
+    if (verificationData) {
+      console.log('📋 Received verification data from props:', verificationData)
+      setData(verificationData)
+    }
+  }, [verificationData])
+
+  const { sessionId, userExists, extractedInfo } = data || {}
+
+  // Listen for auto-filled data from Puppeteer
+  useEffect(() => {
+    // Check localStorage for auto-filled data
+    const storedData = localStorage.getItem('aadhaarVerificationData')
+    if (storedData) {
+      try {
+        const parsedData = JSON.parse(storedData)
+        console.log('📋 Auto-filled data loaded from localStorage:', parsedData)
+        setData(parsedData)
+        // Clear the stored data after loading
+        localStorage.removeItem('aadhaarVerificationData')
+      } catch (e) {
+        console.error('Failed to parse stored data:', e)
+      }
+    }
+
+    // Listen for custom event from Puppeteer
+    const handleAadhaarData = (event) => {
+      console.log('📡 Received auto-filled data from DigiLocker:', event.detail)
+      setData(event.detail)
+    }
+
+    window.addEventListener('aadhaarDataReceived', handleAadhaarData)
+
+    return () => {
+      window.removeEventListener('aadhaarDataReceived', handleAadhaarData)
+    }
+  }, [])
 
   // Handle completion
   const handleComplete = async () => {
@@ -52,11 +90,26 @@ const AadhaarReview = ({ verificationData, onComplete }) => {
 
   // Copy login credentials
   const copyCredentials = () => {
+    if (!extractedInfo) return
     const credentials = `Name: ${extractedInfo.nameLoginKey}\\nPassword: ${extractedInfo.passwordHint}`
     navigator.clipboard.writeText(credentials).then(() => {
       setCopySuccess(true)
       setTimeout(() => setCopySuccess(false), 2000)
     })
+  }
+
+  // Show loading state if data not ready
+  if (!data || !extractedInfo) {
+    return (
+      <Card className="w-full max-w-2xl rounded-4xl border-white/15 bg-white/80 shadow-[0_30px_70px_-40px_rgba(15,23,42,0.85)] backdrop-blur-2xl dark:border-slate-700/60 dark:bg-slate-900/70">
+        <CardContent className="flex items-center justify-center py-12">
+          <div className="text-center">
+            <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-emerald-500" />
+            <p className="text-slate-600 dark:text-slate-300">Loading verification data...</p>
+          </div>
+        </CardContent>
+      </Card>
+    )
   }
 
   return (
