@@ -8,7 +8,7 @@ import { Label } from "../ui/label"
 import { useAuth } from "../../contexts/AuthContext"
 import emailService from "../../services/emailService"
 
-const AadhaarLogin = ({ onLoginSuccess, onForgotPassword }) => {
+const AadhaarLogin = ({ onLoginSuccess }) => {
   const [formData, setFormData] = useState({
     nameLoginKey: "",
     password: ""
@@ -186,8 +186,8 @@ const AadhaarLogin = ({ onLoginSuccess, onForgotPassword }) => {
             </Motion.div>
           )}
 
-          {/* Remember Device & Forgot Password */}
-          <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+          {/* Remember Device */}
+          <div className="flex items-center justify-start text-xs text-slate-500 dark:text-slate-400">
             <label className="inline-flex items-center gap-2">
               <input
                 type="checkbox"
@@ -196,14 +196,6 @@ const AadhaarLogin = ({ onLoginSuccess, onForgotPassword }) => {
               />
               Remember device
             </label>
-            <button
-              type="button"
-              onClick={onForgotPassword}
-              className="font-semibold text-sky-500 transition-colors hover:text-sky-400 dark:text-sky-400 dark:hover:text-sky-300"
-              disabled={isLoading}
-            >
-              Forgot password?
-            </button>
           </div>
 
           {/* Login Button */}
@@ -235,8 +227,24 @@ const AadhaarLogin = ({ onLoginSuccess, onForgotPassword }) => {
           <ul className="space-y-1 text-xs text-sky-600 dark:text-sky-400">
             <li>• Login name is the first 4 letters of your Aadhaar name</li>
             <li>• Password format: NAME4 + DDMMYY (e.g., PRIY250990)</li>
-            <li>• Use "Forgot password?" to reset via Aadhaar verification</li>
+            <li>• Register with DigiLocker if you don't have an account</li>
           </ul>
+        </div>
+
+        {/* New Registration */}
+        <div className="mt-6 border-t border-slate-200 pt-6 text-center dark:border-slate-700">
+          <p className="mb-3 text-sm text-slate-600 dark:text-slate-400">
+            Don't have an account?
+          </p>
+          <a href="/digilocker-auth">
+            <Button
+              variant="outline"
+              className="w-full rounded-2xl border-emerald-500/50 bg-gradient-to-r from-emerald-50 to-teal-50 hover:from-emerald-100 hover:to-teal-100 dark:from-emerald-950/30 dark:to-teal-950/30"
+              disabled={isLoading}
+            >
+              Register with DigiLocker
+            </Button>
+          </a>
         </div>
       </CardContent>
     </Card>
