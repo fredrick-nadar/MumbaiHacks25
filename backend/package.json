@@ -52,7 +52,7 @@
     "@types/chai": "^5.2.3",
     "@types/mocha": "^10.0.10",
     "chai": "^6.2.1",
-    "ethers": "^6.13.4",
+    "ethers": "^6.15.0",
     "hardhat": "^2.22.16",
     "hardhat-gas-reporter": "^2.3.0",
     "nodemon": "^3.0.1",
