@@ -193,27 +193,69 @@ router.get('/simulate', async (req, res) => {
 
     let grossIncome = salaryIncome + otherIncome + capitalGains;
 
+    // Enhanced salary prediction based on inflows and outflows
     if (grossIncome <= 0) {
       const profileAnnualIncome = Number.isFinite(req.user?.annualIncome) ? Math.max(0, req.user.annualIncome) : 0;
-      const inferredFromExpenses = totalExpensesFromTx > 0 ? Math.round(totalExpensesFromTx * 1.1) : 0;
+      
+      // Method 1: Infer from expenses (typical salary = expenses * 1.3 to 1.5 for savings)
+      const inferredFromExpenses = totalExpensesFromTx > 0 ? Math.round(totalExpensesFromTx * 1.4) : 0;
+      
+      // Method 2: If we have any inflows but no categorized salary, use total inflows
+      const inferredFromInflows = totalIncomeFromTx > 0 ? totalIncomeFromTx : 0;
+      
+      // Method 3: Combined approach - use the higher of expense-based or inflow-based
+      const inferredFromPattern = Math.max(inferredFromExpenses, inferredFromInflows);
+      
+      // Baseline if nothing else available
       const baselineAnnual = 750000;
-      const candidate = Math.max(profileAnnualIncome, inferredFromExpenses, baselineAnnual);
+      
+      // Choose the best candidate
+      const candidate = Math.max(profileAnnualIncome, inferredFromPattern, baselineAnnual);
 
       if (candidate > 0) {
         syntheticSource = profileAnnualIncome === candidate
           ? 'profile_annual_income'
-          : inferredFromExpenses === candidate
-            ? 'ledger_expense_inference'
-            : 'baseline_projection';
+          : inferredFromPattern === candidate && inferredFromInflows > inferredFromExpenses
+            ? 'inflow_pattern_analysis'
+            : inferredFromPattern === candidate && inferredFromExpenses > 0
+              ? 'expense_pattern_analysis'
+              : 'baseline_projection';
 
-        const targetSalary = salaryIncome > 0 ? salaryIncome : Math.round(candidate * 0.65);
-        const targetCapitalGains = capitalGains > 0 ? capitalGains : Math.round(candidate * 0.1);
-        const targetOther = Math.max(0, candidate - targetSalary - targetCapitalGains);
+        // Smart allocation: If we have both inflows and outflows, use them to determine salary
+        if (totalIncomeFromTx > 0 && totalExpensesFromTx > 0) {
+          // Use actual inflows as base, but ensure it covers expenses with reasonable savings
+          const minRequiredIncome = Math.round(totalExpensesFromTx * 1.2); // At least 20% savings
+          const estimatedIncome = Math.max(totalIncomeFromTx, minRequiredIncome);
+          
+          salaryIncome = Math.round(estimatedIncome * 0.70); // 70% from salary
+          capitalGains = Math.round(estimatedIncome * 0.10); // 10% from investments
+          otherIncome = Math.max(0, estimatedIncome - salaryIncome - capitalGains); // Rest as other income
+        } else {
+          // Fallback to simple allocation
+          const targetSalary = salaryIncome > 0 ? salaryIncome : Math.round(candidate * 0.65);
+          const targetCapitalGains = capitalGains > 0 ? capitalGains : Math.round(candidate * 0.10);
+          const targetOther = Math.max(0, candidate - targetSalary - targetCapitalGains);
 
-        salaryIncome = Math.max(salaryIncome, targetSalary);
-        capitalGains = Math.max(capitalGains, targetCapitalGains);
-        otherIncome = Math.max(otherIncome, targetOther);
+          salaryIncome = Math.max(salaryIncome, targetSalary);
+          capitalGains = Math.max(capitalGains, targetCapitalGains);
+          otherIncome = Math.max(otherIncome, targetOther);
+        }
       }
+      grossIncome = salaryIncome + otherIncome + capitalGains;
+    } else if (totalExpensesFromTx > grossIncome && totalExpensesFromTx > 0) {
+      // If recorded income is less than expenses, adjust income upward (user might be missing income records)
+      syntheticSource = 'expense_income_mismatch_correction';
+      const adjustedIncome = Math.round(totalExpensesFromTx * 1.3); // Assume 30% savings rate
+      const additionalIncome = adjustedIncome - grossIncome;
+      
+      // Add the gap proportionally to existing income sources
+      if (salaryIncome > 0) {
+        salaryIncome += Math.round(additionalIncome * 0.7);
+      } else {
+        salaryIncome = Math.round(additionalIncome * 0.7);
+      }
+      otherIncome += Math.round(additionalIncome * 0.3);
+      
       grossIncome = salaryIncome + otherIncome + capitalGains;
     }
 

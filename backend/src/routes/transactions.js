@@ -3,6 +3,52 @@ const { Transaction } = require('../models');
 
 const router = express.Router();
 
+// Create a new transaction
+router.post('/', async (req, res) => {
+  try {
+    const { amount, type, category, description, date } = req.body;
+
+    // Validate required fields
+    if (!amount || !type) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Amount and type are required',
+      });
+    }
+
+    // Validate type
+    if (!['credit', 'debit'].includes(type)) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Type must be either "credit" or "debit"',
+      });
+    }
+
+    // Create transaction
+    const transaction = await Transaction.create({
+      userId: req.user._id,
+      amount: Math.abs(parseFloat(amount)),
+      type,
+      category: category || 'other',
+      description: description || '',
+      date: date ? new Date(date) : new Date(),
+    });
+
+    res.status(201).json({
+      status: 'success',
+      message: 'Transaction created successfully',
+      data: transaction,
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to create transaction',
+      error: error.message,
+    });
+  }
+});
+
 // Get all transactions with filtering
 router.get('/', async (req, res) => {
   try {

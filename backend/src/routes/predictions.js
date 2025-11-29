@@ -108,8 +108,10 @@ router.get('/latest', async (req, res) => {
       .sort({ createdAt: -1 });
 
     if (!prediction) {
-      return res.status(404).json({
-        status: 'error',
+      // Return 200 with empty state instead of 404
+      return res.json({
+        status: 'success',
+        data: null,
         message: 'No predictions found. Please upload historical data and generate predictions first.'
       });
     }

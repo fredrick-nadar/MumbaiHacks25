@@ -33,6 +33,7 @@ import DashboardOverview from "./pages/dashboard/DashboardOverview"
 import DashboardAnalytics from "./pages/dashboard/DashboardAnalytics"
 import DashboardPredictions from "./pages/dashboard/DashboardPredictions"
 import DashboardFilings from "./pages/dashboard/DashboardFilings"
+import DashboardVoiceInput from "./pages/dashboard/DashboardVoiceInput"
 import DashboardProfile from "./pages/dashboard/DashboardProfile"
 import DashboardBranding from "./pages/dashboard/DashboardBranding"
 import DashboardKycRefresh from "./pages/dashboard/DashboardKycRefresh"
@@ -993,6 +994,7 @@ const App = () => {
             <Route path="analytics" element={<DashboardAnalytics />} />
             <Route path="predictions" element={<DashboardPredictions />} />
             <Route path="filings" element={<DashboardFilings />} />
+            <Route path="voice-input" element={<DashboardVoiceInput />} />
             <Route path="profile" element={<DashboardProfile />} />
             <Route path="branding" element={<DashboardBranding />} />
             <Route path="kyc-refresh" element={<DashboardKycRefresh />} />

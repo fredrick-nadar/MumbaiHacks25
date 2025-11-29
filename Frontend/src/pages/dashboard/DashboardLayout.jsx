@@ -21,6 +21,7 @@ import {
   AlertTriangle,
   Shield,
   Brain,
+  Mic,
 } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 
@@ -37,6 +38,7 @@ const dashboardLinks = [
   { to: "analytics", label: "Analytics", icon: LineChart },
   { to: "predictions", label: "Predictions", icon: Brain },
   { to: "filings", label: "Filings", icon: FileStack },
+  { to: "voice-input", label: "Voice Input", icon: Mic },
   { to: "blockchain", label: "Blockchain", icon: Shield },
 ]
 

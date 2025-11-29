@@ -67,22 +67,26 @@ const DashboardPredictions = () => {
       
       const response = await api.get('/predictions/latest')
       console.log('Prediction response:', response)
-      setPrediction(response.data)
       
-      // Load comparison data
-      const comparisonResponse = await api.get('/predictions/comparison/overview?months=3')
-      console.log('Comparison response:', comparisonResponse)
-      setComparison(comparisonResponse.data)
+      // Check if we got data
+      if (response.data) {
+        setPrediction(response.data)
+        
+        // Load comparison data only if we have predictions
+        try {
+          const comparisonResponse = await api.get('/predictions/comparison/overview?months=3')
+          console.log('Comparison response:', comparisonResponse)
+          setComparison(comparisonResponse.data)
+        } catch (compErr) {
+          console.log('Comparison not available yet')
+        }
+      } else {
+        // No predictions exist yet
+        setError('no_predictions')
+      }
     } catch (err) {
       console.log('Load predictions error:', err.message)
-      // Check if it's a 404 error (no predictions found)
-      if (err.message && err.message.includes('No predictions found')) {
-        setError('no_predictions')
-      } else if (err.message && err.message.includes('404')) {
-        setError('no_predictions')
-      } else {
-        setError(err.message || 'Failed to load predictions')
-      }
+      setError(err.message || 'Failed to load predictions')
     } finally {
       setLoading(false)
     }
