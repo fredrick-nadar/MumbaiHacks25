@@ -31,14 +31,13 @@ import { useStatementUpload } from "./hooks/useStatementUpload"
 import DashboardLayout from "./pages/dashboard/DashboardLayout"
 import DashboardOverview from "./pages/dashboard/DashboardOverview"
 import DashboardAnalytics from "./pages/dashboard/DashboardAnalytics"
+import DashboardPredictions from "./pages/dashboard/DashboardPredictions"
 import DashboardFilings from "./pages/dashboard/DashboardFilings"
-import DashboardClients from "./pages/dashboard/DashboardClients"
 import DashboardProfile from "./pages/dashboard/DashboardProfile"
 import DashboardBranding from "./pages/dashboard/DashboardBranding"
 import DashboardKycRefresh from "./pages/dashboard/DashboardKycRefresh"
 import BlockchainInsurance from "./pages/dashboard/BlockchainInsurance"
 import DashboardRunbook from "./pages/dashboard/DashboardRunbook"
-import DashboardCaSession from "./pages/dashboard/DashboardCaSession"
 import { BrandingProvider, useBranding } from "./contexts/BrandingContext"
 import TaxCalculatorPage from "./pages/public/TaxCalculatorPage"
 
@@ -992,13 +991,13 @@ const App = () => {
             <Route index element={<Navigate to="overview" replace />} />
             <Route path="overview" element={<DashboardOverview />} />
             <Route path="analytics" element={<DashboardAnalytics />} />
+            <Route path="predictions" element={<DashboardPredictions />} />
             <Route path="filings" element={<DashboardFilings />} />
-            <Route path="clients" element={<DashboardClients />} />
             <Route path="profile" element={<DashboardProfile />} />
             <Route path="branding" element={<DashboardBranding />} />
             <Route path="kyc-refresh" element={<DashboardKycRefresh />} />
             <Route path="runbooks/:runbookId" element={<DashboardRunbook />} />
-            <Route path="advisor" element={<DashboardCaSession />} />
+            
             <Route path="blockchain" element={<BlockchainInsurance />} />
           </Route>
         </Routes>

@@ -263,11 +263,11 @@ router.post('/ingest/csv', upload.single('csvFile'), async (req, res) => {
     const transactions = [];
 
     for (const record of records) {
-      const dateValue = record.Date || record.date || record['Transaction Date'] || record['Txn Date'] || record['Value Date'];
-      const descriptionValue = record.Description || record.description || record.Narration || record.narration || record.Particulars || record['Transaction Details'];
+      const dateValue = record.Date || record.date || record['Transaction Date'] || record['Txn Date'] || record['Value Date'] || record.Month || record.month;
+      const descriptionValue = record.Description || record.description || record.Narration || record.narration || record.Particulars || record['Transaction Details'] || record.Category || record.category;
       const transactionTypeValue = record.transaction_type || record['Transaction Type'] || record.Type || record.type || null;
-      const debitValue = record['Debit Amount'] || record.Debit || record.debit || record['Withdrawal Amt'] || record['Withdrawal'];
-      const creditValue = record['Credit Amount'] || record.Credit || record.credit || record['Deposit Amt'] || record['Deposit'];
+      const debitValue = record['Debit Amount'] || record.Debit || record.debit || record['Withdrawal Amt'] || record['Withdrawal'] || record.Outflow || record.outflow;
+      const creditValue = record['Credit Amount'] || record.Credit || record.credit || record['Deposit Amt'] || record['Deposit'] || record.Inflow || record.inflow;
       const genericAmount = record.Amount || record.amount || record['Transaction Amount'] || record['Txn Amount'];
       const balanceValue = record['Running Balance'] || record.Balance || record.balance || record['Closing Balance'];
 
@@ -283,7 +283,13 @@ router.post('/ingest/csv', upload.single('csvFile'), async (req, res) => {
         }
       }
 
-      if (!dateValue || !descriptionValue || !signedAmount) {
+      // Skip if missing critical fields
+      if (!dateValue || !descriptionValue) {
+        continue;
+      }
+
+      // Skip if no amount detected
+      if (!signedAmount && signedAmount !== 0) {
         continue;
       }
 
@@ -299,19 +305,42 @@ router.post('/ingest/csv', upload.single('csvFile'), async (req, res) => {
         parsedDate = new Date(dateValue);
       }
 
+      // If date is still invalid and we have a Month string (e.g., "January 2024"), parse it
       if (Number.isNaN(parsedDate.valueOf())) {
-        continue;
+        const monthStr = String(dateValue).trim();
+        // Try parsing month names like "January 2024", "Jan 2024", "2024-01", etc.
+        const monthParsed = new Date(monthStr);
+        if (!Number.isNaN(monthParsed.valueOf())) {
+          parsedDate = monthParsed;
+        } else {
+          // Default to first day of current month if we can't parse
+          parsedDate = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+        }
       }
 
-      const { category, type } = categorizeTransaction(descriptionValue, signedAmount);
+      // Use category from file if provided, otherwise do basic categorization
+      let finalCategory = 'other';
+      if (descriptionValue && typeof descriptionValue === 'string') {
+        const lowerDesc = descriptionValue.toLowerCase().trim();
+        // Common category names that might be in the Category column
+        const validCategories = ['salary', 'freelance', 'investment', 'food', 'travel', 'shopping', 'bills', 'entertainment', 
+                                 'grocery', 'fuel', 'utilities', 'healthcare', 'insurance', 'emi', 'rent', 'education'];
+        if (validCategories.includes(lowerDesc)) {
+          finalCategory = lowerDesc;
+        } else {
+          // Fallback to basic categorization if not a known category name
+          const { category } = categorizeTransaction(descriptionValue, signedAmount);
+          finalCategory = category;
+        }
+      }
       
       // Determine transaction type from CSV column if available, otherwise use amount sign
       let transactionType = signedAmount >= 0 ? 'credit' : 'debit';
       if (transactionTypeValue) {
         const typeStr = String(transactionTypeValue).toLowerCase().trim();
-        if (typeStr === 'credit' || typeStr === 'cr') {
+        if (typeStr === 'credit' || typeStr === 'cr' || typeStr === 'inflow') {
           transactionType = 'credit';
-        } else if (typeStr === 'debit' || typeStr === 'dr' || typeStr === 'debit') {
+        } else if (typeStr === 'debit' || typeStr === 'dr' || typeStr === 'outflow') {
           transactionType = 'debit';
         }
       }
@@ -322,7 +351,7 @@ router.post('/ingest/csv', upload.single('csvFile'), async (req, res) => {
         description: descriptionValue.trim(),
         amount: Math.abs(signedAmount),
         type: transactionType,
-        category,
+        category: finalCategory,
         balance: parseNumber(balanceValue) || null,
         rawDescription: descriptionValue,
       });
