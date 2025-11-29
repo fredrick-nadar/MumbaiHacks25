@@ -20,6 +20,7 @@ import {
   ShieldCheck,
   AlertTriangle,
   Shield,
+  Brain,
 } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 
@@ -34,10 +35,9 @@ import { useBranding } from "../../contexts/BrandingContext"
 const dashboardLinks = [
   { to: "overview", label: "Overview", icon: Home },
   { to: "analytics", label: "Analytics", icon: LineChart },
+  { to: "predictions", label: "Predictions", icon: Brain },
   { to: "filings", label: "Filings", icon: FileStack },
-  { to: "clients", label: "Clients", icon: Users2 },
   { to: "blockchain", label: "Blockchain", icon: Shield },
-  { to: "advisor", label: "CA Session", icon: PhoneCall },
 ]
 
 const MotionDiv = motion.div
