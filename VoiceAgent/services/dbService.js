@@ -16,14 +16,34 @@ export async function findUserByPhone(phoneNumber) {
     const normalized = phoneNumber.replace(/[\s-()]/g, '');
     
     const user = await User.findOne({ 
-      phone: normalized,
-      isActive: true 
+      phone: normalized
     });
     
     return user;
   } catch (error) {
     console.error('[DB] Error finding user by phone:', error);
     return null;
+  }
+}
+
+/**
+ * Create new user (for registration via voice)
+ */
+export async function createUser(userData) {
+  try {
+    const user = await User.create({
+      name: userData.name,
+      email: userData.email,
+      phone: userData.phone,
+      isActive: true,
+      createdAt: new Date()
+    });
+    
+    console.log('[DB] User created:', user._id);
+    return user;
+  } catch (error) {
+    console.error('[DB] Error creating user:', error);
+    throw error;
   }
 }
 
@@ -301,6 +321,7 @@ export async function getUserConversations(userId, limit = 10) {
 
 export default {
   findUserByPhone,
+  createUser,
   getUserTaxProfile,
   getUserTransactions,
   addVoiceTransaction,

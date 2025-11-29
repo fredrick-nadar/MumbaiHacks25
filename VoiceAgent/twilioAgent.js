@@ -7,6 +7,7 @@ import { config } from './config/env.js';
 import MasterAgent from './agents/master/masterAgent.js';
 import ExpenseAgent from './agents/slaves/expense/expenseAgent.js';
 import TaxAgent from './agents/slaves/tax/taxAgent.js';
+import { TaxCalculatorAgent } from './agents/slaves/tax/taxCalculatorAgent.js';
 import InvestmentAgent from './agents/slaves/investment/investmentAgent.js';
 import IncomeAgent from './agents/slaves/income/incomeAgent.js';
 import dbService from './services/dbService.js';
@@ -14,17 +15,26 @@ import dbService from './services/dbService.js';
 const VoiceResponse = twilio.twiml.VoiceResponse;
 
 // Initialize agents
+const taxCalculatorAgent = new TaxCalculatorAgent();
+
 const agentRegistry = {
   ExpenseAgent: new ExpenseAgent(),
   TaxAgent: new TaxAgent(),
+  TaxCalculatorAgent: taxCalculatorAgent,
   InvestmentAgent: new InvestmentAgent(),
   IncomeAgent: new IncomeAgent(),
 };
 
 const masterAgent = new MasterAgent(agentRegistry);
 
+// Store active tax calculator sessions (callSid -> sessionData)
+const taxCalculatorSessions = new Map();
+
 // Store call sessions with user info
 const callSessions = new Map();
+
+// Store user registration sessions (for new users being registered)
+const registrationSessions = new Map();
 
 /**
  * Handle incoming call
@@ -54,7 +64,8 @@ export async function handleIncomingCall(req, res) {
       conversationId,
       userId: user?._id,
       userName: user?.name,
-      userPhone: fromNumber
+      userPhone: fromNumber,
+      isNewUser: !user
     });
 
     // Start voice conversation in MongoDB (best-effort)
@@ -71,24 +82,21 @@ export async function handleIncomingCall(req, res) {
     }
 
     // Personalized greeting based on user profile
-    const greeting = user 
-      ? `नमस्ते ${user.name} जी! मैं आपका वित्तीय सहायक हूँ। आप मुझसे खर्च, कर बचत, और निवेश के बारे में पूछ सकते हैं।`
+    const firstName = user?.name?.split(' ')[0] || null;
+    const greeting = firstName 
+      ? `नमस्ते ${firstName} जी! मैं आपका वित्तीय सहायक हूँ। आप मुझसे खर्च, कर बचत, और निवेश के बारे में पूछ सकते हैं।`
       : 'नमस्ते! मैं आपका वित्तीय सहायक हूँ। आप मुझसे खर्च, कर बचत, और निवेश के बारे में पूछ सकते हैं।';
 
-    // Use Twilio TTS for fast response (no timeout risk)
     twiml.say({
       voice: 'Google.hi-IN-Standard-A',
       language: 'hi-IN'
     }, greeting);
 
-    // Gather speech input
     const gather = twiml.gather({
       input: 'speech',
       action: '/voice/process',
       method: 'POST',
       language: 'hi-IN',
-      speechTimeout: 'auto',
-      speechModel: 'phone_call',
       timeout: 5
     });
 
@@ -123,6 +131,7 @@ export async function handleIncomingCall(req, res) {
  * Process speech input
  * MongoDB Integration: Loads user's tax profile, transactions, and monthly summary
  * for personalized AI responses
+ * Tax Calculator: Handles multi-step tax calculation flow
  */
 export async function processVoiceInput(req, res) {
   console.log('[Twilio] Processing voice input');
@@ -152,9 +161,107 @@ export async function processVoiceInput(req, res) {
       conversationId: `${from}-${Date.now()}`
     };
     const conversationId = session.conversationId;
-    const userId = session.userId;
+    const userId = session.userId || callSid;
     const userName = session.userName;
 
+    // Check if user wants to calculate tax (trigger words) - Improved regex with more patterns and flexible spacing
+    const normalizedSpeech = speechResult.replace(/\s+/g, ' ').trim(); // Normalize multiple spaces
+    const taxCalcTriggers = /(tax\s*calculat|calculate\s*(my\s*)?tax|tax\s*kitna|mera\s*tax|tax\s*nikalo|tax\s*bata|कर\s*गणना|टैक्स\s*कैलकुलेट|टैक्स\s*निकालो|मेरा\s*टैक्स|कैलकुलेट\s*करो|कैलकुलेट\s*माय|माय\s*टैक्स)/i;
+    const isNewTaxCalcRequest = taxCalcTriggers.test(normalizedSpeech);
+    
+    console.log(`[TaxCalc] Trigger check: "${normalizedSpeech}" -> ${isNewTaxCalcRequest}`);
+
+    // Check if we have an active tax calculator session
+    const hasTaxCalcSession = taxCalculatorSessions.has(callSid);
+
+    console.log(`[TaxCalc] New request: ${isNewTaxCalcRequest}, Active session: ${hasTaxCalcSession}`);
+
+    // Handle Tax Calculator Flow
+    if (isNewTaxCalcRequest || hasTaxCalcSession) {
+      console.log('[TaxCalc] === TAX CALCULATOR MODE ===');
+      
+      // If new request, initialize session
+      if (isNewTaxCalcRequest && !hasTaxCalcSession) {
+        taxCalculatorSessions.set(callSid, { userId });
+        taxCalculatorAgent.initSession(userId);
+        console.log('[TaxCalc] Starting new tax calculation session');
+      }
+
+      // Process input with tax calculator agent
+      const taxResult = await taxCalculatorAgent.handle(
+        { query: speechResult },
+        { userId }
+      );
+
+      console.log('[TaxCalc] Result:', {
+        step: taxResult.currentStep,
+        total: taxResult.totalSteps,
+        completed: taxResult.completed,
+        awaitingInput: taxResult.awaitingInput
+      });
+
+      // Determine which language to use
+      const useHindi = /[\u0900-\u097F]/.test(speechResult) || 
+                       speechResult.toLowerCase().includes('hindi') ||
+                       session.language === 'hi';
+      
+      const voiceConfig = useHindi 
+        ? { voice: 'Google.hi-IN-Standard-A', language: 'hi-IN' }
+        : { voice: 'Google.en-IN-Standard-A', language: 'en-IN' };
+
+      // Get appropriate response
+      const responseText = useHindi 
+        ? (taxResult.responseHindi || taxResult.response)
+        : taxResult.response;
+
+      twiml.say(voiceConfig, responseText);
+
+      // If awaiting more input, gather speech
+      if (taxResult.awaitingInput) {
+        const gather = twiml.gather({
+          input: 'speech',
+          action: '/voice/process',
+          method: 'POST',
+          language: voiceConfig.language,
+          timeout: 8  // Longer timeout for thinking about numbers
+        });
+
+        gather.say(voiceConfig, useHindi ? 'कृपया राशि बताएं।' : 'Please say the amount.');
+      } else if (taxResult.completed) {
+        // Tax calculation complete - clean up session
+        taxCalculatorSessions.delete(callSid);
+        console.log('[TaxCalc] Session completed and cleaned up');
+
+        // Log final result
+        console.log('[TaxCalc] Final Result:', JSON.stringify(taxResult.taxResult, null, 2));
+
+        // Ask if user wants to continue with other queries
+        const gather = twiml.gather({
+          input: 'speech',
+          action: '/voice/process',
+          method: 'POST',
+          language: voiceConfig.language,
+          timeout: 5
+        });
+
+        gather.say(voiceConfig, useHindi 
+          ? 'क्या आप और कुछ जानना चाहते हैं?'
+          : 'Would you like to know anything else?');
+      }
+
+      // Fallback
+      twiml.say(voiceConfig, useHindi 
+        ? 'धन्यवाद! आपका दिन शुभ हो।'
+        : 'Thank you! Have a great day.');
+      twiml.hangup();
+
+      res.type('text/xml');
+      res.send(twiml.toString());
+      console.log('[TaxCalc] Response sent');
+      return;
+    }
+
+    // Regular flow - not tax calculator
     // Save user message to MongoDB (best-effort)
     try {
       await dbService.addConversationMessage(conversationId, {
@@ -170,18 +277,18 @@ export async function processVoiceInput(req, res) {
 
     // Fetch user financial context from MongoDB for personalized responses
     let userContext = {};
-    if (userId) {
+    if (session.userId) {
       try {
         console.log('[DB] Loading user context for:', userName);
         const [taxProfile, monthlySummary, recentTransactions] = await Promise.all([
-          dbService.getUserTaxProfile(userId),
-          dbService.getMonthlySummary(userId),
-          dbService.getUserTransactions(userId, { limit: 5 })
+          dbService.getUserTaxProfile(session.userId),
+          dbService.getMonthlySummary(session.userId),
+          dbService.getUserTransactions(session.userId, { limit: 5 })
         ]);
 
         userContext = {
           userName,
-          userId,
+          userId: session.userId,
           taxProfile,
           monthlySummary,
           recentTransactions
@@ -276,8 +383,6 @@ export async function processVoiceInput(req, res) {
       action: '/voice/process',
       method: 'POST',
       language: voiceConfig.language,
-      speechTimeout: 'auto',
-      speechModel: 'phone_call',
       timeout: 5
     });
 
@@ -336,6 +441,23 @@ export function handleCallStatus(req, res) {
         .then(() => console.log(`[DB] Conversation ended: ${session.conversationId}`))
         .catch(err => console.warn('[DB] endVoiceConversation failed:', err.message));
     }
+    
+    // Clean up tax calculator session if exists
+    if (taxCalculatorSessions.has(callSid)) {
+      const taxSession = taxCalculatorSessions.get(callSid);
+      if (taxSession?.userId) {
+        taxCalculatorAgent.cancelSession(taxSession.userId);
+      }
+      taxCalculatorSessions.delete(callSid);
+      console.log(`[TaxCalc] Cleaned up session for ${callSid}`);
+    }
+    
+    // Clean up registration session if exists
+    if (registrationSessions.has(callSid)) {
+      registrationSessions.delete(callSid);
+      console.log(`[Registration] Cleaned up session for ${callSid}`);
+    }
+    
     callSessions.delete(callSid);
     console.log(`[Twilio] Cleaned up session for ${callSid}`);
   }

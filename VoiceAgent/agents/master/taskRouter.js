@@ -10,6 +10,8 @@ export const taskRouter = {
     const mappings = {
       expense_logging: ['ExpenseAgent'],
       tax_saving_advice: ['TaxAgent'],
+      tax_calculator: ['TaxCalculatorAgent'],
+      calculate_tax: ['TaxCalculatorAgent'],
       invest_for_tax_saving: ['InvestmentAgent', 'TaxAgent'],
       income_vs_expenses: ['IncomeAgent', 'ExpenseAgent'],
       investment_advice: ['InvestmentAgent'],
