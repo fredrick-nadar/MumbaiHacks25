@@ -18,6 +18,7 @@ const taxRoutes = require('./routes/tax');
 const creditRoutes = require('./routes/credit');
 const dashboardRoutes = require('./routes/dashboard');
 const reportRoutes = require('./routes/reports');
+const insuranceRoutes = require('./routes/insurance');
 
 // Import middleware
 const errorHandler = require('./middleware/errorHandler');
@@ -121,6 +122,7 @@ app.use('/api/tax', authenticateToken, taxRoutes);
 app.use('/api/credit', authenticateToken, creditRoutes);
 app.use('/api/dashboard', authenticateToken, dashboardRoutes);
 app.use('/api/reports', authenticateToken, reportRoutes);
+app.use('/api/insurance', authenticateToken, insuranceRoutes); // Blockchain-enabled insurance
 
 // Catch 404 and forward to error handler
 app.use('*', (req, res) => {

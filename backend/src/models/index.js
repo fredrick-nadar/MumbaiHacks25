@@ -6,6 +6,7 @@ const Category = require('./Category');
 const KycSession = require('./KycSession');
 const LoginEvent = require('./LoginEvent');
 const PasswordEvent = require('./PasswordEvent');
+const InsurancePolicy = require('./InsurancePolicy');
 
 module.exports = {
   User,
@@ -15,5 +16,6 @@ module.exports = {
   Category,
   KycSession,
   LoginEvent,
-  PasswordEvent
+  PasswordEvent,
+  InsurancePolicy
 };

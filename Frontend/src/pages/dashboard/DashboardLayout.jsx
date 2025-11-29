@@ -19,6 +19,7 @@ import {
   Loader2,
   ShieldCheck,
   AlertTriangle,
+  Shield,
 } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 
@@ -35,8 +36,7 @@ const dashboardLinks = [
   { to: "analytics", label: "Analytics", icon: LineChart },
   { to: "filings", label: "Filings", icon: FileStack },
   { to: "clients", label: "Clients", icon: Users2 },
-  { to: "profile", label: "Profile", icon: UserCog },
-  { to: "branding", label: "Branding", icon: Palette },
+  { to: "blockchain", label: "Blockchain", icon: Shield },
   { to: "advisor", label: "CA Session", icon: PhoneCall },
 ]
 

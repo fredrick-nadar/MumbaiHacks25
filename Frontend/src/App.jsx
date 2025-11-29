@@ -36,6 +36,7 @@ import DashboardClients from "./pages/dashboard/DashboardClients"
 import DashboardProfile from "./pages/dashboard/DashboardProfile"
 import DashboardBranding from "./pages/dashboard/DashboardBranding"
 import DashboardKycRefresh from "./pages/dashboard/DashboardKycRefresh"
+import BlockchainInsurance from "./pages/dashboard/BlockchainInsurance"
 import DashboardRunbook from "./pages/dashboard/DashboardRunbook"
 import DashboardCaSession from "./pages/dashboard/DashboardCaSession"
 import { BrandingProvider, useBranding } from "./contexts/BrandingContext"
@@ -998,6 +999,7 @@ const App = () => {
             <Route path="kyc-refresh" element={<DashboardKycRefresh />} />
             <Route path="runbooks/:runbookId" element={<DashboardRunbook />} />
             <Route path="advisor" element={<DashboardCaSession />} />
+            <Route path="blockchain" element={<BlockchainInsurance />} />
           </Route>
         </Routes>
       </div>
