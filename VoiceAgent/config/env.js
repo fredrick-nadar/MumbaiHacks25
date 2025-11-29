@@ -18,5 +18,13 @@ export const config = {
     model: 'llama-3.3-70b-versatile', // Recommended for multilingual + reasoning
     // Alternative: 'llama-3.1-70b-versatile' or 'mixtral-8x7b-32768'
   },
+  elevenlabs: {
+    apiKey: process.env.ELEVENLABS_API_KEY,
+    voiceId: process.env.ELEVENLABS_VOICE_ID,
+    voiceName: process.env.ELEVENLABS_VOICE_NAME || 'tripti',
+  },
+  mongodb: {
+    uri: process.env.MONGODB_URI,
+  },
   ngrokUrl: process.env.NGROK_URL,
 };

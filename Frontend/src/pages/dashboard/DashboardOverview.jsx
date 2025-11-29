@@ -24,6 +24,7 @@ import { Button } from "../../components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../components/ui/tabs"
 import { cn } from "../../lib/utils"
 import ReactMarkdown from "react-markdown"
+import { RequestCallButton } from "../../components/dashboard/RequestCallButton"
 
 const metricIcons = [FileText, CheckCircle2, TrendingUp, GaugeCircle]
 const MotionDiv = motion.div
@@ -362,11 +363,14 @@ export const DashboardOverview = () => {
 
       <Card className="rounded-[32px] border-white/10 bg-white/90 shadow-[0_28px_70px_-38px_rgba(59,130,246,0.45)] backdrop-blur dark:border-slate-700/60 dark:bg-slate-900/70">
         <CardHeader className="flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <CardTitle className="text-xl font-semibold text-slate-900 dark:text-white">CIBIL score advisor</CardTitle>
-            <CardDescription className="text-xs uppercase tracking-[0.28em] text-slate-500 dark:text-slate-400">
-              Gemini nudges to keep credit in the green
-            </CardDescription>
+          <div className="flex flex-wrap items-center gap-4">
+            <div>
+              <CardTitle className="text-xl font-semibold text-slate-900 dark:text-white">CIBIL score advisor</CardTitle>
+              <CardDescription className="text-xs uppercase tracking-[0.28em] text-slate-500 dark:text-slate-400">
+                Gemini nudges to keep credit in the green
+              </CardDescription>
+            </div>
+            <RequestCallButton className="rounded-full px-5 py-2 text-sm font-semibold" />
           </div>
           <Sparkles className="h-5 w-5 text-sky-500" />
         </CardHeader>

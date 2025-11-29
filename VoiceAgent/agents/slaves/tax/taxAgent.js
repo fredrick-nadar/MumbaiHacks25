@@ -16,18 +16,44 @@ export class TaxAgent {
     try {
       const userId = context.userId || 'default';
       const { query, intent } = task;
+      const userContext = context.userContext || {};
 
       console.log(`[TaxAgent] Processing task for user ${userId}`);
+      console.log(`[TaxAgent] User context available:`, {
+        hasTaxProfile: !!userContext.taxProfile,
+        hasMonthlySummary: !!userContext.monthlySummary,
+        userName: userContext.userName || 'Unknown'
+      });
 
-      // Get user's tax profile
-      const profile = this.memory.getTaxProfile(userId);
+      // Get user's tax profile - prefer REAL MongoDB data
+      let profile = this.memory.getTaxProfile(userId);
+      if (userContext.taxProfile) {
+        profile = {
+          annualIncome: userContext.taxProfile.salaryIncome || 600000,
+          deductions: {
+            section80C: userContext.taxProfile.section80C || 0,
+            section80D: userContext.taxProfile.section80D || 0
+          },
+          taxSlab: userContext.taxProfile.recommendedRegime || 'new'
+        };
+        console.log(`[TaxAgent] ✅ Using REAL tax profile from MongoDB:`);
+        console.log(`   - Income: ₹${profile.annualIncome}`);
+        console.log(`   - 80C Deductions: ₹${profile.deductions.section80C}`);
+        console.log(`   - 80D Deductions: ₹${profile.deductions.section80D}`);
+      } else {
+        console.log(`[TaxAgent] ⚠️ No MongoDB data - using in-memory defaults`);
+      }
       
       // Use income from previous agent if available
       const previousOutputs = context.previous || [];
       const incomeData = previousOutputs.find(o => o.agent === 'IncomeAgent');
       const expenseData = previousOutputs.find(o => o.agent === 'ExpenseAgent');
 
-      const annualIncome = incomeData?.result?.data?.annualIncome || profile.annualIncome || 600000;
+      // Priority: MongoDB userContext > previous agents > in-memory profile
+      const annualIncome = userContext.taxProfile?.salaryIncome || 
+                          incomeData?.result?.data?.annualIncome || 
+                          profile.annualIncome || 
+                          600000;
       
       // Calculate tax
       const taxCalculation = this.reasoner.calculateTax(
@@ -66,6 +92,8 @@ export class TaxAgent {
           taxLiability: taxCalculation.taxLiability,
           effectiveTaxRate: taxCalculation.effectiveTaxRate,
           potentialSavings: this.calculatePotentialSavings(suggestions),
+          realDataUsed: !!userContext.taxProfile,
+          dataSource: userContext.taxProfile ? 'MongoDB' : 'in-memory'
         },
       };
 

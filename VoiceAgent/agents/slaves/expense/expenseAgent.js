@@ -19,25 +19,51 @@ export class ExpenseAgent {
     try {
       const userId = context.userId || 'default';
       const { query, intent } = task;
+      const userContext = context.userContext || {};
 
       console.log(`[ExpenseAgent] Processing task for user ${userId}`);
+      console.log(`[ExpenseAgent] User context available:`, {
+        hasTransactions: !!userContext.recentTransactions,
+        hasMonthlySummary: !!userContext.monthlySummary,
+        userName: userContext.userName || 'Unknown'
+      });
+
+      // Log MongoDB data if available
+      if (userContext.monthlySummary) {
+        console.log(`[ExpenseAgent] ✅ Using REAL MongoDB data - Monthly Expenses: ₹${userContext.monthlySummary.expenses}`);
+      }
 
       // Categorize the expense from query
       const expense = await this.reasoner.categorizeExpense(query);
       
-      // Store the expense
+      // Store the expense (in memory for now, will be saved by twilioAgent to MongoDB)
       if (expense.amount > 0) {
         this.memory.storeExpense(userId, expense);
         console.log(`[ExpenseAgent] Stored expense: ₹${expense.amount} in ${expense.category}`);
       }
 
-      // Get all expenses
-      const expenses = this.memory.getExpenses(userId);
-      const monthlyExpenses = this.memory.getMonthlyExpenses(
-        userId,
-        new Date().getMonth(),
-        new Date().getFullYear()
-      );
+      // Use REAL MongoDB data from userContext if available
+      let monthlyExpenses = [];
+      if (userContext.recentTransactions && userContext.recentTransactions.length > 0) {
+        // Map MongoDB transactions to expense format
+        monthlyExpenses = userContext.recentTransactions
+          .filter(t => t.type === 'debit')
+          .map(t => ({
+            amount: t.amount,
+            category: t.category,
+            description: t.description,
+            date: t.date
+          }));
+        console.log(`[ExpenseAgent] Using ${monthlyExpenses.length} real transactions from MongoDB`);
+      } else {
+        // Fallback to in-memory
+        monthlyExpenses = this.memory.getMonthlyExpenses(
+          userId,
+          new Date().getMonth(),
+          new Date().getFullYear()
+        );
+        console.log(`[ExpenseAgent] Using in-memory expenses (no MongoDB data)`);
+      }
 
       // Analyze spending pattern
       const pattern = await this.reasoner.analyzeSpendingPattern(monthlyExpenses);
@@ -53,19 +79,24 @@ export class ExpenseAgent {
         warnings
       );
 
+      // Use real monthly summary from MongoDB if available
+      const actualMonthlyTotal = userContext.monthlySummary?.expenses || pattern.totalSpent;
+      console.log(`[ExpenseAgent] Monthly expenses: ₹${actualMonthlyTotal} (from ${userContext.monthlySummary ? 'MongoDB' : 'memory'})`);
+
       // Build response
       const result = {
         success: true,
         expense,
-        summary: this.buildSummary(expense, pattern, warnings),
+        summary: this.buildSummary(expense, pattern, warnings, userContext),
         pattern,
         warnings,
         recommendations,
         data: {
           currentExpense: expense,
-          monthlyTotal: pattern.totalSpent,
+          monthlyTotal: actualMonthlyTotal,
           categoryBreakdown: pattern.categoryBreakdown,
           topCategories: pattern.topCategories,
+          realDataUsed: !!userContext.recentTransactions
         },
       };
 
@@ -81,16 +112,18 @@ export class ExpenseAgent {
   }
 
   /**
-   * Build human-readable summary
+   * Build human-readable summary with real user data
    */
-  buildSummary(expense, pattern, warnings) {
+  buildSummary(expense, pattern, warnings, userContext = {}) {
     const parts = [];
 
     if (expense.amount > 0) {
       parts.push(`Logged ₹${expense.amount} for ${expense.category}.`);
     }
 
-    parts.push(`Your total monthly spending is ₹${Math.round(pattern.totalSpent)}.`);
+    // Use real MongoDB data if available
+    const monthlyTotal = userContext.monthlySummary?.expenses || pattern.totalSpent;
+    parts.push(`Your total monthly spending is ₹${Math.round(monthlyTotal)}.`);
 
     if (pattern.topCategories.length > 0) {
       const top = pattern.topCategories[0];
