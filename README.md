@@ -1,152 +1,598 @@
 <!--
-  Master README for BitNBuild-25_GRIND (TaxWise)
-  Combines Frontend, Backend, TaxWise Voice (Twilio), and Chrome Extension docs
-  Generated to provide a single source-of-truth for developers and operators.
+  Master README for MumbaiHacks25 (TaxWise)
+  Complete documentation for Frontend, Backend, VoiceAgent, TaxWise Voice, and Chrome Extension
+  Single source-of-truth for developers, operators, and hackathon judges.
 -->
-# TaxWise — Full Project (Frontend + Backend + Voice + Chrome Extension)
+# TaxWise — AI-Powered Financial Intelligence Platform
 
-This repository contains the full TaxWise project: a React frontend (dashboard and marketing UI), a Node.js backend (Aadhaar-based auth, KYC, transaction ingestion, tax calculations), a TaxWise Voice service (Twilio + VAPI voice agent + alerts), and a small Chrome extension.
+**An intelligent voice-based financial assistant with automated tax calculations, expense tracking, and personalized tax optimization**
 
-This single README explains how the pieces fit together, how data and requests flow through the system, how to run each component locally (PowerShell commands), the required environment variables, important endpoints to configure in Twilio/VAPI, and detailed troubleshooting guidance.
+This repository contains the complete TaxWise platform built for MumbaiHacks25:
+- 🎨 **Frontend**: React + Vite dashboard with real-time financial insights
+- ⚙️ **Backend**: Node.js + Express + MongoDB API with Aadhaar-based authentication
+- 🎙️ **VoiceAgent**: Twilio-powered multilingual voice assistant with AI tax calculator
+- 📞 **TaxWise Voice**: VAPI-integrated advanced voice service with alerts
+- 🔌 **Chrome Extension**: Quick access browser extension
 
-Audience: developers and devops engineers who will run, test, or extend the system locally or deploy to staging/production.
+**Key Innovation**: Step-by-step conversational tax calculator that asks 4 simple questions and provides Old vs New regime comparison with taxable income breakdowns — all via voice in Hindi/English.
+
+Audience: Developers, DevOps engineers, and hackathon judges evaluating the technical implementation.
 
 ---
 
 ## Table of contents
 
-1. High-level architecture
-2. Sequence flows (calls, data, alerts) — diagrams and step-by-step
-3. Component breakdown
-   - Frontend
-   - Backend
-   - TaxWise Voice
-   - Chrome extension
-4. Environment & configuration (per-service)
-5. How to run everything locally (PowerShell-friendly)
-6. Important endpoints & what to configure in Twilio/VAPI
-7. Troubleshooting (detailed) and common gotchas
-8. Testing, seeding & developer workflows
-9. Security & production hardening checklist
-10. Next steps & recommended improvements
+1. 🌟 Key Features & Innovation
+2. 🏗️ High-level Architecture
+3. 📱 Component Breakdown
+   - VoiceAgent (Main Innovation)
+   - Frontend Dashboard
+   - Backend API
+   - TaxWise Voice (VAPI)
+   - Chrome Extension
+4. 🎙️ Voice Tax Calculator (Step-by-Step Flow)
+5. 🔧 Environment & Configuration
+6. 🚀 Quick Start Guide (PowerShell)
+7. 📞 Twilio/VAPI Configuration
+8. 🧪 Testing & Demo Workflows
+9. 🐛 Troubleshooting Guide
+10. 🔐 Security Checklist
+11. 📊 Tech Stack & Dependencies
+12. 🗺️ Roadmap & Next Steps
 
 ---
 
-## 1) High-level architecture
+## 1) 🌟 Key Features & Innovation
 
-Legend:
-- UI → Frontend (React + Vite)
-- API → Backend (Express + MongoDB)
-- Voice → taxwise-voice (Express + Twilio + VAPI)
-- Extension → Chrome extension (React + Vite)
+### Voice Tax Calculator (Main Hackathon Innovation)
+- ✅ **4-Question Conversational Flow** in Hindi/English
+  1. Annual Salary Income (सालाना सैलरी)
+  2. Other Taxable Income (अन्य आय)
+  3. Section 80C Investments (80C निवेश)
+  4. Other Deductions (अन्य छूट)
+- ✅ **Automatic Tax Calculation** for both Old & New regime
+- ✅ **Taxable Income Breakdown** with regime recommendation
+- ✅ **Smart Amount Parsing**: Understands "12 lakh", "1.5 lakh", "zero"
+- ✅ **Real-time Voice Response** via Twilio TTS (Hindi voices)
 
-ASCII overview (end-to-end):
-
-```
-  [User Browser]           [Twilio Cloud]            [VAPI Agent]        [MongoDB]
-       |                        |                        |                  |
-       |---(1) UI actions-----> |                        |                  |
-       |                        |---(2) Webhook (voice)-> |                  |
-       |                        |<--(6) Twiml/Bridge -----|                  |
-       |                        |                        |                  |
-       |---(3) API calls----->  |                        |                  |
-       |         (VITE_API_URL) |                        |                  |
-       |                        |                        |                  |
-       |                        |                        |---(4) Queries--->|
-       |                        |                        |<--(5) Data--------|
-```
-
-Short flow explanation:
-- (1) Users interact with the Frontend. Actions like "Call me" or "Get my CIBIL" trigger API calls.
-- (2) Incoming voice calls land on Twilio, which sends a webhook to the `taxwise-voice` service.
-- (3) Frontend talks to Backend API for user data, uploads and calculations.
-- (4)-(5) VAPI agent calls the secure tool endpoint (`/vapi/tool/query`) on `taxwise-voice`, which may query the Backend/MongoDB for user data.
-- (6) `taxwise-voice` responds to Twilio with TwiML or bridges the call to VAPI for a live AI conversation.
+### Platform Features
+- 🗣️ **Voice-First Interface**: Call and get instant tax advice
+- 🌐 **Multilingual**: Hindi (primary), English, Tamil, Telugu
+- 🤖 **Master-Slave AI Architecture**: Intelligent agent orchestration
+- 💰 **Financial Intelligence**: Expense tracking, investment advice
+- 📊 **Real-time Analysis**: MongoDB-backed personalized insights
+- 🔐 **Aadhaar Authentication**: Secure login with government ID
+- 📱 **Responsive Dashboard**: React-based modern UI
+- 🔔 **Smart Alerts**: Twilio SMS/WhatsApp notifications
 
 ---
 
-## 2) Sequence flows and diagrams
+## 2) 🏗️ High-level Architecture
 
-2.1 Inbound call -> AI agent (end-to-end)
-
-1. Caller dials Twilio number.
-2. Twilio sends HTTP POST to `https://<BASE_URL>/voice/incoming`.
-3. `taxwise-voice` verifies request, logs event, and either responds with TwiML or orchestrates a SIP/WebSocket bridge to VAPI.
-4. VAPI initiates tool queries to `https://<BASE_URL>/vapi/tool/query` to fetch user vitals (requires `VAPI_TOOL_TOKEN`).
-5. `taxwise-voice` may query Backend (`/api/*`) to retrieve user data from MongoDB.
-6. VAPI returns responses; the call continues and the user hears answers.
-
-2.2 Frontend -> API -> Alerts flow
-
-1. User uploads statements through Frontend (uses `useStatementUpload`).
-2. Frontend posts files to Backend `POST /api/transactions/import`.
-3. Backend processes files, stores transactions, updates user profiles and triggers alert checks.
-4. Alerts service (either in backend or taxwise-voice depending on config) detects anomalies and schedules notifications.
-5. Notifications are sent via Twilio (SMS/WhatsApp/voice) using Twilio credentials.
-
-Diagram (simplified):
+### System Components
 
 ```
-Frontend (React)
-   | POST /transactions/import
-   v
-Backend (Express) -> parse & store -> MongoDB
-   |                                   ^
-   | schedule alerts                   |
-   v                                   |
-taxwise-voice (alerts/cron) ----------+
-   | send SMS/WhatsApp via Twilio
-   v
-User notification
+┌─────────────────────────────────────────────────────────────────┐
+│                        User Interactions                         │
+├─────────────────────────────────────────────────────────────────┤
+│  📱 Web Dashboard  │  📞 Phone Call  │  🔌 Chrome Extension     │
+└──────┬──────────────┴────────┬───────┴──────────┬───────────────┘
+       │                       │                   │
+       │ HTTP/REST             │ Twilio Webhooks   │ HTTP/REST
+       │                       │                   │
+       ▼                       ▼                   ▼
+┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
+│    Frontend     │    │   VoiceAgent     │    │     Backend     │
+│  (React+Vite)   │    │  (Twilio+Groq)   │    │  (Express+Mongo)│
+│   Port: 5173    │    │   Port: 3000     │    │   Port: 3001    │
+└────────┬────────┘    └────────┬─────────┘    └────────┬────────┘
+         │                      │                        │
+         │                      │                        │
+         └──────────────────────┼────────────────────────┘
+                                │
+                                ▼
+                    ┌───────────────────────┐
+                    │   MongoDB Atlas       │
+                    │   (User Data, Tax     │
+                    │   Profiles, Txns)     │
+                    └───────────────────────┘
+                                │
+                    ┌───────────┴───────────┐
+                    │   Twilio Cloud        │
+                    │   (SMS, Voice,        │
+                    │    WhatsApp)          │
+                    └───────────────────────┘
+```
+
+### Voice Tax Calculator Flow (End-to-End)
+
+```
+User → Calls Twilio Number
+  ↓
+Twilio → POST /voice/incoming (VoiceAgent)
+  ↓
+VoiceAgent → Greets user by name (MongoDB lookup)
+  ↓
+User → Says "कैलकुलेट माय टैक्स"
+  ↓
+VoiceAgent → Detects trigger, starts tax calculator
+  ↓
+Tax Calculator Agent → Asks Q1: "आपकी सालाना सैलरी कितनी है?"
+  ↓
+User → "12 lakh"
+  ↓
+Tax Calculator → Parses ₹12,00,000 → Asks Q2
+  ↓
+[Repeats for Q2: Other Income, Q3: 80C, Q4: Other Deductions]
+  ↓
+Tax Calculator → Calculates:
+  - Gross Income
+  - Old Regime: Taxable Income + Tax
+  - New Regime: Taxable Income + Tax
+  - Recommendation (which saves more)
+  ↓
+VoiceAgent → Speaks result in Hindi
+  ↓
+User → Hears complete tax breakdown and recommendation
 ```
 
 ---
 
-## 3) Component breakdown (what lives where)
+## 3) 📱 Component Breakdown
 
-3.1 Frontend (`Frontend/`)
-- React + Vite app. Entry: `src/main.jsx`.
-- Key files: `src/App.jsx`, `src/pages/dashboard/*`, `src/components/*`, `src/contexts/AuthContext.jsx`, `src/contexts/BrandingContext.jsx`.
-- Styling: Tailwind via `src/index.css`; uses `Plus Jakarta Sans` font and supports dark mode.
+### 🎙️ VoiceAgent (Port 3000) — **Main Innovation**
 
-3.2 Backend (`backend/`)
-- Express server. Entry: `src/index.js`.
-- Config: `src/config/env.js`, DB connect in `src/config/database.js`.
-- Core domains: `routes/*` (`auth`, `aadhaar-auth`, `kyc`, `transactions`, `tax`, `credit`, `dashboard`, `reports`) and `services/*` (aadhaar parsers, AI helper, security helpers).
+**The Star of MumbaiHacks25**: Conversational tax calculator via phone calls
 
-3.3 TaxWise Voice (`taxwise-voice/`)
-- Express server specialized for telephony.
-- Routes: `src/routes/voice.js` (incoming/status callbacks), `src/routes/vapiTools.js` (secure tool endpoints used by VAPI), services: `twilioClient.js`, `alerts.js`.
-- Expects `BASE_URL` to be publicly reachable (ngrok during local dev).
+**Location**: `VoiceAgent/`
 
-3.4 Chrome Extension (`chrome-extension/`)
-- Lightweight React + Vite app that bundles a small UI for quick access.
+**Key Features**:
+- ✅ **Tax Calculator Agent**: 4-question conversational flow
+  - Asks questions one by one in Hindi/English
+  - Parses amounts: "12 lakh" → ₹12,00,000
+  - Calculates Old vs New regime tax
+  - Returns taxable income breakdown
+- ✅ **Master-Slave Architecture**: Intelligent agent orchestration
+- ✅ **MongoDB Integration**: User lookup by phone number
+- ✅ **Multilingual**: Hindi (primary), English, Tamil, Telugu
+- ✅ **Twilio Integration**: Voice webhooks with TTS
+
+**Project Structure**:
+```
+VoiceAgent/
+├── server.js                    # Express server with webhooks
+├── twilioAgent.js               # Twilio integration & call handling
+├── makeCall.js                  # Test script for outbound calls
+├── agents/
+│   ├── master/
+│   │   ├── masterAgent.js       # Main orchestrator
+│   │   ├── taskRouter.js        # Intent-to-agent mapping
+│   │   ├── collaborationManager.js
+│   │   └── languageManager.js
+│   └── slaves/
+│       ├── tax/
+│       │   ├── taxCalculatorAgent.js  # ⭐ 4-step tax calculator
+│       │   ├── taxAgent.js            # General tax advice
+│       │   └── taxReasoner.js
+│       ├── expense/expenseAgent.js
+│       ├── investment/investmentAgent.js
+│       └── income/incomeAgent.js
+├── core/
+│   ├── prompts.js               # AI prompts for agents
+│   ├── schema.js                # Data schemas
+│   ├── contextManager.js        # Conversation context
+│   ├── memoryStore.js           # In-memory storage
+│   └── eventBus.js              # Agent communication
+├── models/                      # MongoDB models
+│   ├── User.js
+│   ├── TaxProfile.js
+│   ├── Transaction.js
+│   └── VoiceConversation.js
+├── services/
+│   ├── dbService.js             # Database operations
+│   └── elevenlabsService.js     # TTS service
+└── config/
+    ├── env.js
+    └── database.js
+```
+
+**Tax Calculator Implementation**:
+```javascript
+// Example: How it works
+Step 1: User says "calculate my tax"
+  → Agent asks: "आपकी सालाना सैलरी कितनी है?"
+  
+Step 2: User says "12 lakh"
+  → Agent parses ₹12,00,000
+  → Agent asks: "क्या आपकी कोई अन्य आय है?"
+  
+Step 3: User says "50 thousand"
+  → Agent parses ₹50,000
+  → Agent asks: "80C में कितना निवेश किया है?"
+  
+Step 4: User says "1.5 lakh"
+  → Agent parses ₹1,50,000
+  → Agent asks: "कोई अन्य छूट?"
+  
+Step 5: User says "zero"
+  → Agent calculates:
+     Gross: ₹12.5L
+     Old Regime: Taxable ₹10.5L, Tax ₹1.3L
+     New Regime: Taxable ₹12.0L, Tax ₹83K
+     Recommendation: NEW regime saves ₹49K
+```
+
+**API Endpoints**:
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/voice/incoming` | POST | Twilio webhook (new call) |
+| `/voice/process` | POST | Twilio webhook (speech input) |
+| `/voice/status` | POST | Call status updates |
+| `/test` | GET | Test agent without calling |
 
 ---
 
-## 4) Environment & configuration (per-service)
+### 🎨 Frontend (Port 5173)
 
-All secrets go into `.env` files in each service directory. High-level variables (examples):
+**Location**: `Frontend/`
 
-- Frontend (`Frontend/`):
-  - `VITE_API_URL` — e.g., `http://localhost:3001` (used by frontend to contact backend)
-  - EmailJS keys: `VITE_EMAILJS_PUBLIC_KEY`, `VITE_EMAILJS_SERVICE_ID`, `VITE_EMAILJS_TEMPLATE_ID`
+**Tech Stack**: React 18 + Vite + Tailwind CSS + Framer Motion
 
-- Backend (`backend/`):
-  - `MONGO_URI` or `MONGODB_URI` — MongoDB connection string
-  - `PORT` — server port
-  - `JWT_SECRET`, `AADHAAR_SALT` — security secrets
-  - `ENABLE_RATE_LIMITING`, `MAX_FILE_SIZE` etc.
+**Key Features**:
+- ✅ Modern dashboard with dark mode
+- ✅ Real-time financial analytics
+- ✅ Tax calculator UI
+- ✅ Expense tracking interface
+- ✅ Investment portfolio viewer
+- ✅ Aadhaar authentication UI
+- ✅ Responsive design (mobile-first)
 
-- TaxWise Voice (`taxwise-voice/`):
-  - `PORT`, `BASE_URL` (public), `MONGO_URI`
-  - `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_NUMBER`
-  - `VAPI_TOOL_TOKEN`, `VAPI_SIP_URI` / `VAPI_WS_URL`
-  - `WHATSAPP_FROM`, `ALERTS_SMS_FROM`, `YOUR_WHATSAPP_NUMBER`
+**Project Structure**:
+```
+Frontend/
+├── src/
+│   ├── main.jsx                 # Entry point
+│   ├── App.jsx                  # Root component
+│   ├── pages/
+│   │   ├── dashboard/
+│   │   │   ├── Dashboard.jsx
+│   │   │   ├── Overview.jsx
+│   │   │   ├── Transactions.jsx
+│   │   │   ├── TaxPlanner.jsx
+│   │   │   └── Reports.jsx
+│   │   ├── auth/
+│   │   │   ├── Login.jsx
+│   │   │   └── AadhaarAuth.jsx
+│   │   └── landing/
+│   │       └── LandingPage.jsx
+│   ├── components/
+│   │   ├── charts/
+│   │   ├── forms/
+│   │   └── layout/
+│   ├── contexts/
+│   │   ├── AuthContext.jsx
+│   │   └── BrandingContext.jsx
+│   ├── hooks/
+│   │   └── useStatementUpload.js
+│   ├── services/
+│   │   └── api.js
+│   └── lib/
+│       └── utils.js
+├── public/
+│   └── images/
+├── index.html
+├── vite.config.js
+└── tailwind.config.js
+```
 
-Security tips:
-- Keep secrets out of source control. Use `.env.example` as template.
-- Use a secret manager in production and set proper network rules for MongoDB.
+**Environment Variables**:
+```env
+VITE_API_URL=http://localhost:3001
+VITE_EMAILJS_PUBLIC_KEY=your_key
+VITE_EMAILJS_SERVICE_ID=your_service
+VITE_EMAILJS_TEMPLATE_ID=your_template
+```
+
+---
+
+### ⚙️ Backend (Port 3001)
+
+**Location**: `backend/`
+
+**Tech Stack**: Node.js + Express + MongoDB + Mongoose
+
+**Key Features**:
+- ✅ Aadhaar-based authentication
+- ✅ KYC verification
+- ✅ Transaction import (Excel/CSV/PDF)
+- ✅ Tax calculation engine
+- ✅ Credit score integration
+- ✅ Dashboard analytics API
+- ✅ Report generation
+
+**Project Structure**:
+```
+backend/
+├── src/
+│   ├── index.js                 # Express server
+│   ├── config/
+│   │   ├── env.js
+│   │   └── database.js
+│   ├── routes/
+│   │   ├── auth.js              # Auth endpoints
+│   │   ├── aadhaar-auth.js      # Aadhaar login
+│   │   ├── kyc.js               # KYC verification
+│   │   ├── transactions.js      # Transaction import
+│   │   ├── tax.js               # Tax calculations
+│   │   ├── credit.js            # Credit score
+│   │   ├── dashboard.js         # Dashboard data
+│   │   └── reports.js           # PDF reports
+│   ├── models/
+│   │   ├── User.js
+│   │   ├── Transaction.js
+│   │   ├── TaxProfile.js
+│   │   └── KYCDocument.js
+│   ├── services/
+│   │   ├── aadhaarParser.js     # QR/XML parsing
+│   │   ├── taxCalculator.js     # Tax engine
+│   │   ├── creditScore.js       # Score calculation
+│   │   └── aiHelper.js          # AI utilities
+│   └── middleware/
+│       ├── auth.js              # JWT verification
+│       ├── rateLimiter.js
+│       └── errorHandler.js
+├── contracts/                   # Blockchain (Polygon)
+│   └── InsuranceRegistry.sol
+├── scripts/
+│   └── debugExcel.js
+└── uploads/                     # Temporary file storage
+```
+
+**API Endpoints** (Sample):
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/auth/demo-login` | POST | Demo login |
+| `/api/aadhaar-auth/login` | POST | Aadhaar login |
+| `/api/transactions/import` | POST | Upload statements |
+| `/api/tax/calculate` | POST | Calculate tax |
+| `/api/dashboard/overview` | GET | Dashboard summary |
+| `/api/credit/score` | GET | Credit score |
+
+---
+
+### 📞 TaxWise Voice (VAPI Integration)
+
+**Location**: `taxwise-voice/`
+
+**Advanced voice service with VAPI integration** (separate from VoiceAgent)
+
+**Key Features**:
+- ✅ VAPI agent integration
+- ✅ Voice alerts (Twilio)
+- ✅ SMS/WhatsApp notifications
+- ✅ Gemini AI integration
+- ✅ Secure tool endpoints
+
+---
+
+### 🔌 Chrome Extension
+
+**Location**: `chrome-extension/`
+
+**Quick access browser extension** for TaxWise features
+
+**Tech Stack**: React + Vite (builds to static extension)
+
+**Features**:
+- ✅ Quick tax lookup
+- ✅ Expense logging
+- ✅ Dashboard access
+
+---
+
+## 4) 🎙️ Voice Tax Calculator (Detailed Flow)
+
+### Tax Calculator Features
+
+**4 Simple Questions**:
+1. **Annual Salary Income** (आपकी सालाना सैलरी कितनी है?)
+2. **Other Taxable Income** (क्या आपकी कोई अन्य आय है?)
+3. **Section 80C Investments** (80C में कितना निवेश किया है?)
+4. **Other Deductions** (कोई अन्य छूट जैसे HRA?)
+
+**Smart Amount Parsing**:
+- "12 lakh" → ₹12,00,000
+- "1.5 lakh" → ₹1,50,000
+- "50 thousand" → ₹50,000
+- "zero" → ₹0
+- Direct numbers: "150000" → ₹1,50,000
+
+**Calculations**:
+```javascript
+Inputs: Salary, Other Income, 80C, Other Deductions
+  ↓
+Gross Income = Salary + Other Income
+  ↓
+OLD REGIME:
+  Taxable Income = Gross - Standard(50K) - 80C - Other
+  Tax = Calculated per slabs (5%, 20%, 30%)
+  ↓
+NEW REGIME:
+  Taxable Income = Gross - Standard(50K)
+  Tax = Calculated per slabs (5%, 10%, 15%, 20%, 30%)
+  ↓
+COMPARISON:
+  Which regime has lower tax?
+  Savings = Difference between regimes
+```
+
+### Example Call Transcript
+
+```
+📞 Call starts
+
+Agent: "नमस्ते Kamraan जी! मैं आपका वित्तीय सहायक हूँ। 
+       आप मुझसे खर्च, कर बचत, और निवेश के बारे में पूछ सकते हैं।"
+
+User: "कैलकुलेट माय टैक्स"
+
+Agent: "चलिए आपका टैक्स कैलकुलेट करते हैं! 
+       आपकी सालाना सैलरी कितनी है?"
+
+User: "12 lakh"
+
+Agent: "ठीक है! ₹12.0L नोट किया। अब, 
+       क्या आपकी कोई अन्य आय है जैसे किराया, ब्याज, या फ्रीलांस?"
+
+User: "50 thousand"
+
+Agent: "ठीक है! ₹50K नोट किया। अब, 
+       80C में कितना निवेश किया है? इसमें PF, PPF, ELSS शामिल है।"
+
+User: "1.5 lakh"
+
+Agent: "ठीक है! ₹1.5L नोट किया। अब, 
+       कोई अन्य छूट जैसे HRA, एजुकेशन लोन ब्याज?"
+
+User: "zero"
+
+Agent: "टैक्स कैलकुलेशन पूरा हुआ! 
+       आपकी कुल आय ₹12.5L है। 
+       पुरानी व्यवस्था में: कर योग्य आय ₹10.5L है, टैक्स ₹1.3L है। 
+       नई व्यवस्था में: कर योग्य आय ₹12.0L है, टैक्स ₹83K है। 
+       नई व्यवस्था से ₹49K बचत होगी। 
+       मैं नई व्यवस्था की सलाह देता हूं।"
+```
+
+### Tax Calculation Logic
+
+**Old Regime (FY 2024-25)**:
+- ₹0 - 2.5L: 0%
+- ₹2.5L - 5L: 5%
+- ₹5L - 10L: 20%
+- Above ₹10L: 30%
+- Plus 4% cess
+- Deductions: Standard (₹50K) + 80C (max ₹1.5L) + Other
+
+**New Regime (FY 2024-25)**:
+- ₹0 - 3L: 0%
+- ₹3L - 7L: 5%
+- ₹7L - 10L: 10%
+- ₹10L - 12L: 15%
+- ₹12L - 15L: 20%
+- Above ₹15L: 30%
+- Plus 4% cess
+- Deductions: Only standard ₹50K
+
+### Session Management
+
+```javascript
+// Each call gets a unique session
+const session = {
+  userId: '6929dfe9d924c42f5466fae7',
+  step: 0,  // Current question (0-3)
+  awaitingInput: true,  // Waiting for user response
+  data: {
+    salaryIncome: null,
+    otherIncome: null,
+    section80C: null,
+    otherDeductions: null
+  },
+  completed: false
+};
+
+// Session is stored in memory (Map)
+// Cleaned up after call completes
+```
+
+---
+
+## 5) 🔧 Environment & Configuration
+
+### VoiceAgent `.env` (Port 3000)
+
+```env
+# MongoDB
+MONGO_URI=mongodb+srv://user:pass@cluster.mongodb.net/taxwise
+
+# Twilio
+TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxx
+TWILIO_AUTH_TOKEN=your_auth_token
+TWILIO_PHONE_NUMBER=+17626752485
+YOUR_PHONE_NUMBER=+12242314556
+
+# Groq AI
+GROQ_API_KEY=gsk_xxxxxxxxxxxxx
+
+# Server
+PORT=3000
+NODE_ENV=development
+NGROK_URL=https://bde9373f72a5.ngrok-free.app
+
+# Optional: ElevenLabs TTS
+ELEVENLABS_API_KEY=your_key
+ELEVENLABS_VOICE_ID=voice_id
+```
+
+### Frontend `.env` (Port 5173)
+
+```env
+VITE_API_URL=http://localhost:3001
+
+# EmailJS (optional)
+VITE_EMAILJS_PUBLIC_KEY=your_key
+VITE_EMAILJS_SERVICE_ID=service_id
+VITE_EMAILJS_TEMPLATE_ID=template_id
+```
+
+### Backend `.env` (Port 3001)
+
+```env
+# MongoDB
+MONGODB_URI=mongodb+srv://user:pass@cluster.mongodb.net/taxwise
+
+# Server
+PORT=3001
+NODE_ENV=development
+
+# JWT
+JWT_SECRET=your_super_secret_key_here
+
+# Security
+AADHAAR_SALT=random_salt_for_aadhaar_hashing
+ENABLE_RATE_LIMITING=true
+MAX_FILE_SIZE=10485760
+
+# Optional: Blockchain
+POLYGON_RPC_URL=https://polygon-rpc.com
+PRIVATE_KEY=your_wallet_private_key
+```
+
+### TaxWise Voice `.env`
+
+```env
+# MongoDB
+MONGO_URI=mongodb+srv://user:pass@cluster.mongodb.net/taxwise
+
+# Twilio
+TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxx
+TWILIO_AUTH_TOKEN=your_auth_token
+TWILIO_NUMBER=+1234567890
+WHATSAPP_FROM=whatsapp:+1234567890
+YOUR_WHATSAPP_NUMBER=whatsapp:+919876543210
+
+# VAPI
+VAPI_TOOL_TOKEN=your_secret_token
+VAPI_SIP_URI=sip:user@vapi.ai
+VAPI_WS_URL=wss://api.vapi.ai
+
+# Server
+PORT=3001
+BASE_URL=https://your-ngrok-url.ngrok-free.app
+
+# Gemini AI (optional)
+GEMINI_API_KEY=your_gemini_key
+```
 
 ---
 

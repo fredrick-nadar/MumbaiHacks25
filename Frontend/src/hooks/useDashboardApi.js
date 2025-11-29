@@ -75,7 +75,7 @@ const useApiResource = (path, { skip = false, method = "GET", body } = {}) => {
     return () => window.removeEventListener(REFRESH_EVENT, handler)
   }, [refresh])
 
-  return { data, loading, error, refresh }
+  return { data, loading, error, refresh, refetch: refresh }
 }
 
 export const useDashboardSummary = (options = {}) =>
@@ -97,6 +97,11 @@ export const useTransactionsList = (params = {}, options = {}) => {
   if (params.startDate) searchParams.append("startDate", params.startDate)
   if (params.endDate) searchParams.append("endDate", params.endDate)
   if (params.search) searchParams.append("search", params.search)
+  
+  // Add refresh key to force refetch when it changes
+  if (params._refreshKey !== undefined) {
+    searchParams.append("_t", params._refreshKey.toString())
+  }
 
   return useApiResource(`/transactions?${searchParams.toString()}`, options)
 }

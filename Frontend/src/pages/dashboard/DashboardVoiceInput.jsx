@@ -47,6 +47,8 @@ export default function DashboardVoiceInput() {
   })
 
   const handleTransactionAdded = async (newTransaction) => {
+    console.log('🔄 Transaction added, refreshing list...', newTransaction)
+    
     // Increment the refresh key to trigger a refetch
     setRefreshKey(prev => prev + 1)
     
@@ -54,6 +56,8 @@ export default function DashboardVoiceInput() {
     if (refetch) {
       await refetch()
     }
+    
+    console.log('✅ Refresh triggered')
   }
 
   const transactions = transactionsData?.transactions || []
